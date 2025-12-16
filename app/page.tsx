@@ -1,65 +1,172 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { apiGet, apiPostForm, apiPostJson, clearToken, setToken, API_BASE } from "../lib/api";
+
+type UserPublic = {
+  id: string;
+  email: string;
+  plan: "FREE" | "PRO";
+  stripe_customer_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function Home() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [me, setMe] = useState<UserPublic | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadMe() {
+    setError(null);
+    const res = await apiGet("/v1/auth/me");
+    if (!res.ok) {
+      setMe(null);
+      return;
+    }
+    setMe(await res.json());
+  }
+
+  useEffect(() => {
+    loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function signup() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiPostJson("/v1/auth/signup", { email, password });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body?.detail || "Signup failed");
+        return;
+      }
+      await login(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function login(internal = false) {
+    if (!internal) {
+      setLoading(true);
+      setError(null);
+    }
+    try {
+      const res = await apiPostForm("/v1/auth/login", { username: email, password });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.access_token) {
+        setError(body?.detail || "Login failed");
+        return;
+      }
+      setToken(body.access_token);
+      await loadMe();
+    } finally {
+      if (!internal) setLoading(false);
+    }
+  }
+
+  function logout() {
+    clearToken();
+    setMe(null);
+    setError(null);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">NBA Insights</h1>
+          {me ? (
+            <button onClick={logout} className="text-sm px-3 py-1 rounded-lg border hover:bg-gray-50">
+              Log out
+            </button>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        <p className="mt-2 text-xs text-gray-500">
+          API: <span className="font-mono">{API_BASE}</span>
+        </p>
+
+        {me ? (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border bg-gray-50 p-4">
+              <div className="text-sm text-gray-600">Logged in as</div>
+              <div className="font-medium">{me.email}</div>
+              <div className="mt-2 text-sm">
+                Plan: <span className="font-semibold">{me.plan}</span>
+              </div>
+            </div>
+
+            <a href="/dashboard" className="block text-center rounded-xl bg-black text-white py-2.5 hover:opacity-90">
+              Go to Dashboard
+            </a>
+
+            <button onClick={loadMe} className="w-full rounded-xl border py-2.5 hover:bg-gray-50">
+              Refresh
+            </button>
+          </div>
+        ) : (
+          <div className="mt-6">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode("login")}
+                className={`flex-1 rounded-xl py-2 text-sm border ${mode === "login" ? "bg-black text-white" : ""}`}
+              >
+                Log in
+              </button>
+              <button
+                onClick={() => setMode("signup")}
+                className={`flex-1 rounded-xl py-2 text-sm border ${mode === "signup" ? "bg-black text-white" : ""}`}
+              >
+                Sign up
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block">
+                <div className="text-sm text-gray-700 mb-1">Email</div>
+                <input
+                  className="w-full rounded-xl border px-3 py-2"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </label>
+
+              <label className="block">
+                <div className="text-sm text-gray-700 mb-1">Password</div>
+                <input
+                  className="w-full rounded-xl border px-3 py-2"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type="password"
+                  placeholder="********"
+                />
+              </label>
+
+              {error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
+              <button
+                disabled={loading || !email || !password}
+                onClick={mode === "signup" ? signup : () => login(false)}
+                className="w-full rounded-xl bg-black text-white py-2.5 disabled:opacity-50"
+              >
+                {loading ? "Working..." : mode === "signup" ? "Create account" : "Log in"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
