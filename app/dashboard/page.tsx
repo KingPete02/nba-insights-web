@@ -32,11 +32,21 @@ type PossItem = {
   possession: "HOME" | "AWAY" | null;
 };
 
+type FairLineItem = {
+  gameId: string;
+  home: string;
+  away: string;
+  fair: { spread_home: number; total: number };
+  prob: { home_win: number; away_win: number };
+  dist: { total_mean: number; total_std: number; margin_mean: number; margin_std: number };
+};
+
 export default function Dashboard() {
   const [me, setMe] = useState<UserPublic | null>(null);
   const [games, setGames] = useState<ScoreboardGame[]>([]);
   const [proj, setProj] = useState<Record<string, ProjItem>>({});
   const [poss, setPoss] = useState<Record<string, PossItem>>({});
+  const [fair, setFair] = useState<Record<string, FairLineItem>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -67,7 +77,18 @@ export default function Dashboard() {
         setGames([]);
       }
 
-      // Projections
+      // Fair lines (new)
+      const fRes = await apiGet("/v1/nba/fairline/today");
+      if (fRes.ok) {
+        const fd = await fRes.json();
+        const map: Record<string, FairLineItem> = {};
+        for (const it of fd.items || []) map[it.gameId] = it;
+        setFair(map);
+      } else {
+        setFair({});
+      }
+
+      // Projections (existing placeholder)
       const pRes = await apiGet("/v1/nba/projections/today");
       if (pRes.ok) {
         const p = await pRes.json();
@@ -78,7 +99,7 @@ export default function Dashboard() {
         setProj({});
       }
 
-      // Possession (only returns items for live games)
+      // Possession (only for live games)
       const possRes = await apiGet("/v1/nba/possession/today");
       if (possRes.ok) {
         const pd = await possRes.json();
@@ -98,16 +119,23 @@ export default function Dashboard() {
     return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/${code}.png&w=80&h=80&transparent=true`;
   }
 
-  function pct(x: number) {
-    return `${Math.round(x * 100)}%`;
-  }
-
   function formatUtc(iso: string) {
     try {
       return new Date(iso).toLocaleString();
     } catch {
       return iso;
     }
+  }
+
+  function pct(x: number) {
+    return `${Math.round(x * 100)}%`;
+  }
+
+  function fmtLine(x: number) {
+    // one decimal is enough
+    const v = Math.round(x * 10) / 10;
+    // show + for positive numbers
+    return v > 0 ? `+${v}` : `${v}`;
   }
 
   const sortedGames = useMemo(() => {
@@ -176,16 +204,13 @@ export default function Dashboard() {
                   sortedGames.map((g) => {
                     const p = proj[g.gameId];
                     const pos = poss[g.gameId]?.possession || null;
+                    const f = fair[g.gameId];
 
                     return (
                       <div key={g.gameId} className="rounded-xl border p-4">
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={logoUrl(g.away.teamTricode)}
-                              alt={g.away.teamTricode}
-                              className="h-8 w-8"
-                            />
+                            <img src={logoUrl(g.away.teamTricode)} alt={g.away.teamTricode} className="h-8 w-8" />
                             <div className="text-sm">
                               <div className="font-medium flex items-center gap-2">
                                 <span className="inline-flex items-center gap-2">
@@ -208,14 +233,31 @@ export default function Dashboard() {
                             <div className="text-sm font-mono">
                               {g.away.score} - {g.home.score}
                             </div>
-                            <img
-                              src={logoUrl(g.home.teamTricode)}
-                              alt={g.home.teamTricode}
-                              className="h-8 w-8"
-                            />
+                            <img src={logoUrl(g.home.teamTricode)} alt={g.home.teamTricode} className="h-8 w-8" />
                           </div>
                         </div>
 
+                        {/* Fair line display */}
+                        {f ? (
+                          <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                            <div className="rounded-lg bg-gray-50 border p-3">
+                              <div className="text-xs text-gray-500">Fair Total</div>
+                              <div className="font-semibold">{Math.round(f.fair.total * 10) / 10}</div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 border p-3">
+                              <div className="text-xs text-gray-500">Fair Spread (Home)</div>
+                              <div className="font-semibold">{fmtLine(f.fair.spread_home)}</div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 border p-3">
+                              <div className="text-xs text-gray-500">Home Win%</div>
+                              <div className="font-semibold">{pct(f.prob.home_win)}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 text-xs text-gray-500">Fair lines loading…</div>
+                        )}
+
+                        {/* Existing win% cards (placeholder) */}
                         {p ? (
                           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                             <div className="rounded-lg bg-gray-50 border p-3">
@@ -227,9 +269,7 @@ export default function Dashboard() {
                               <div className="font-semibold">{pct(p.homeWinProb)}</div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="mt-3 text-xs text-gray-500">Projections not available yet.</div>
-                        )}
+                        ) : null}
                       </div>
                     );
                   })
