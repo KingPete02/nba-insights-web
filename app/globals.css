@@ -2,42 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+/* Dark app baseline */
+:root { color-scheme: dark; }
 
-  /* Theme tokens */
-  --background: 9 9 11;   /* zinc-950 */
-  --surface: 24 24 27;    /* zinc-900 */
-  --border: 39 39 42;     /* zinc-800 */
-}
-
-html, body {
-  height: 100%;
-}
+html, body { height: 100%; }
 
 body {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
   letter-spacing: -0.01em;
+  background: #07070a;
+  color: #f4f4f5;
 }
 
-/* Slightly “premium” text rendering */
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Better focus rings */
 :focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.65); /* emerald glow */
+  outline: 2px solid rgba(16,185,129,0.55);
   outline-offset: 2px;
-}
-
-/* Utility theme classes */
-.bg-background { background-color: rgb(var(--background)); }
-.bg-surface { background-color: rgb(var(--surface)); }
-.border-border { border-color: rgb(var(--border)); }
-
-/* Nice monospace for numeric columns */
-.mono {
-  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
