@@ -9,12 +9,8 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      colors: {
-        background: "#09090b",
-        surface: "#18181b",
-        border: "#27272a",
-        muted: "#a1a1aa",
-        accent: "#f97316",
+      boxShadow: {
+        glow: "0 0 0 1px rgba(16,185,129,0.25), 0 0 24px rgba(16,185,129,0.12)",
       },
     },
   },
