@@ -201,6 +201,9 @@ export default function Dashboard() {
           <a href="/" className="text-sm px-3 py-1 rounded-lg border hover:bg-gray-50">
             Back
           </a>
+          <a href="/positive-ev" className="text-sm px-3 py-1 rounded-lg border hover:bg-gray-50">
+            Positive EV
+          </a>
         </div>
 
         {error ? (
