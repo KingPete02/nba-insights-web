@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/api";
+import { Button, Card, CardBody, CardHeader, Pill } from "../../components/ui";
 
 type EdgeRow = {
   gameId: string;
   home: string;
   away: string;
-  gameTimeUTC: string | null;
-  gameStatus: number | null;
   gameStatusText: string | null;
 
   book: string;
@@ -27,21 +26,13 @@ type EdgeRow = {
   fetched_at: string | null;
 };
 
-function pct(x: number) {
-  return `${Math.round(x * 100)}%`;
-}
-function evPct(ev: number) {
-  return `${Math.round(ev * 1000) / 10}%`;
-}
-function fmt(x: number) {
-  const v = Math.round(x * 100) / 100;
-  return `${v}`;
-}
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+const evPct = (ev: number) => `${Math.round(ev * 1000) / 10}%`;
+const fmt = (x: number) => `${Math.round(x * 100) / 100}`;
 
-function evClass(ev: number) {
-  // green for strong EV, neutral for low
-  if (ev >= 0.06) return "text-emerald-400";
-  if (ev >= 0.03) return "text-emerald-300";
+function evTone(ev: number) {
+  if (ev >= 0.06) return "text-emerald-300";
+  if (ev >= 0.03) return "text-emerald-200";
   return "text-zinc-200";
 }
 
@@ -61,6 +52,7 @@ export default function PositiveEVPage() {
       const res = await apiGet(url);
       if (!res.ok) {
         setRows([]);
+        setFetchedAt(null);
         return;
       }
       const data = await res.json();
@@ -97,85 +89,85 @@ export default function PositiveEVPage() {
             Auto-refresh: 15s • {fetchedAt ? `Odds fetched: ${new Date(fetchedAt).toLocaleString()}` : "—"}
           </p>
         </div>
-
-        <button
-          onClick={load}
-          disabled={loading}
-          className="rounded-xl border border-border bg-surface px-4 py-2 text-sm hover:bg-zinc-800/60 disabled:opacity-50 transition"
-        >
+        <Button onClick={load} disabled={loading} variant="primary">
           {loading ? "Loading..." : "Refresh"}
-        </button>
+        </Button>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-        {/* Filters */}
-        <aside className="rounded-2xl border border-border bg-surface/60 p-4 shadow-glow">
-          <div className="font-semibold text-zinc-100">Filters</div>
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+        <Card className="shadow-glow">
+          <CardHeader
+            title="Filters"
+            subtitle="Tighten EV threshold and narrow books."
+            right={<Pill tone="green">{evPct(minEv)} min EV</Pill>}
+          />
+          <CardBody>
+            <div className="space-y-4">
+              <label className="block text-sm text-zinc-300">
+                Market
+                <select
+                  value={market}
+                  onChange={(e) => setMarket(e.target.value as any)}
+                  className="mt-1 w-full rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2 text-zinc-100"
+                >
+                  <option value="spreads">Spreads</option>
+                  <option value="totals">Totals</option>
+                </select>
+              </label>
 
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm text-zinc-300">
-              Market
-              <select
-                value={market}
-                onChange={(e) => setMarket(e.target.value as any)}
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-zinc-100"
-              >
-                <option value="spreads">Spreads</option>
-                <option value="totals">Totals</option>
-              </select>
-            </label>
+              <label className="block text-sm text-zinc-300">
+                Minimum EV <span className="text-emerald-300 font-medium">({evPct(minEv)})</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.15}
+                  step={0.005}
+                  value={minEv}
+                  onChange={(e) => setMinEv(parseFloat(e.target.value))}
+                  className="mt-2 w-full"
+                />
+              </label>
 
-            <label className="block text-sm text-zinc-300">
-              Minimum EV <span className="text-emerald-400 font-medium">({evPct(minEv)})</span>
-              <input
-                type="range"
-                min={0}
-                max={0.15}
-                step={0.005}
-                value={minEv}
-                onChange={(e) => setMinEv(parseFloat(e.target.value))}
-                className="mt-2 w-full"
-              />
-            </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm text-zinc-300">
+                  Max rows
+                  <input
+                    type="number"
+                    min={10}
+                    max={200}
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(parseInt(e.target.value || "50", 10))}
+                    className="mt-1 w-full rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2 text-zinc-100"
+                  />
+                </label>
 
-            <label className="block text-sm text-zinc-300">
-              Max results
-              <input
-                type="number"
-                min={10}
-                max={200}
-                value={maxResults}
-                onChange={(e) => setMaxResults(parseInt(e.target.value || "50", 10))}
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-zinc-100"
-              />
-            </label>
+                <label className="block text-sm text-zinc-300">
+                  Book search
+                  <input
+                    value={bookFilter}
+                    onChange={(e) => setBookFilter(e.target.value)}
+                    placeholder="FanDuel…"
+                    className="mt-1 w-full rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2 text-zinc-100"
+                  />
+                </label>
+              </div>
 
-            <label className="block text-sm text-zinc-300">
-              Book search
-              <input
-                value={bookFilter}
-                onChange={(e) => setBookFilter(e.target.value)}
-                placeholder="FanDuel, DK, etc."
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-zinc-100"
-              />
-            </label>
-
-            <div className="pt-2 text-xs text-zinc-500">
-              Next: book checkboxes + saved presets + row details drawer.
+              <div className="text-xs text-zinc-500">
+                Next: multi-book checkboxes + saved presets + row click details.
+              </div>
             </div>
-          </div>
-        </aside>
+          </CardBody>
+        </Card>
 
-        {/* Table */}
-        <section className="rounded-2xl border border-border bg-surface/40 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="font-semibold">Opportunities</div>
-            <div className="text-xs text-zinc-500">{filtered.length} rows</div>
-          </div>
-
+        <Card>
+          <CardHeader
+            title="Opportunities"
+            subtitle="Clicking rows will open a details panel next."
+            right={<Pill>{filtered.length} rows</Pill>}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-950/70 backdrop-blur border-b border-border">
+              <thead className="sticky top-0 bg-zinc-950/80 backdrop-blur border-b border-zinc-800/60">
                 <tr className="text-left text-xs text-zinc-400">
                   <th className="p-3">Game</th>
                   <th className="p-3">Pick</th>
@@ -193,7 +185,7 @@ export default function PositiveEVPage() {
                 {filtered.map((r, i) => (
                   <tr
                     key={`${r.gameId}-${r.book}-${r.pick}-${r.book_line}-${r.odds_decimal}-${i}`}
-                    className={`border-b border-border/60 hover:bg-zinc-900/40 transition ${
+                    className={`border-b border-zinc-800/50 hover:bg-zinc-900/30 transition ${
                       i % 2 === 0 ? "bg-transparent" : "bg-zinc-950/20"
                     }`}
                   >
@@ -215,7 +207,7 @@ export default function PositiveEVPage() {
                     <td className="p-3 mono text-zinc-200">{pct(r.model_prob)}</td>
                     <td className="p-3 mono text-zinc-200">{pct(r.implied_prob)}</td>
 
-                    <td className={`p-3 mono font-semibold ${evClass(r.ev)}`}>
+                    <td className={`p-3 mono font-semibold ${evTone(r.ev)}`}>
                       {evPct(r.ev)}
                     </td>
                   </tr>
@@ -223,7 +215,7 @@ export default function PositiveEVPage() {
 
                 {filtered.length === 0 ? (
                   <tr>
-                    <td className="p-6 text-sm text-zinc-400" colSpan={9}>
+                    <td className="p-8 text-sm text-zinc-400" colSpan={9}>
                       No opportunities found for current filters.
                     </td>
                   </tr>
@@ -231,7 +223,7 @@ export default function PositiveEVPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   );
