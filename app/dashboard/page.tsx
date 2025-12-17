@@ -41,12 +41,26 @@ type FairLineItem = {
   dist: { total_mean: number; total_std: number; margin_mean: number; margin_std: number };
 };
 
+type EdgeItem = {
+  gameId: string;
+  book: string;
+  source: string;
+  market: "spreads" | "totals";
+  pick: string;
+  line: number;
+  odds_decimal: number;
+  model_prob: number;
+  ev: number;
+};
+
 export default function Dashboard() {
   const [me, setMe] = useState<UserPublic | null>(null);
   const [games, setGames] = useState<ScoreboardGame[]>([]);
   const [proj, setProj] = useState<Record<string, ProjItem>>({});
   const [poss, setPoss] = useState<Record<string, PossItem>>({});
   const [fair, setFair] = useState<Record<string, FairLineItem>>({});
+  const [edgesSpreads, setEdgesSpreads] = useState<EdgeItem[]>([]);
+  const [edgesTotals, setEdgesTotals] = useState<EdgeItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +91,7 @@ export default function Dashboard() {
         setGames([]);
       }
 
-      // Fair lines (new)
+      // Fair lines
       const fRes = await apiGet("/v1/nba/fairline/today");
       if (fRes.ok) {
         const fd = await fRes.json();
@@ -88,7 +102,7 @@ export default function Dashboard() {
         setFair({});
       }
 
-      // Projections (existing placeholder)
+      // Projections (placeholder)
       const pRes = await apiGet("/v1/nba/projections/today");
       if (pRes.ok) {
         const p = await pRes.json();
@@ -99,7 +113,7 @@ export default function Dashboard() {
         setProj({});
       }
 
-      // Possession (only for live games)
+      // Possession (live games)
       const possRes = await apiGet("/v1/nba/possession/today");
       if (possRes.ok) {
         const pd = await possRes.json();
@@ -108,6 +122,23 @@ export default function Dashboard() {
         setPoss(map);
       } else {
         setPoss({});
+      }
+
+      // Edges: spreads + totals (EV >= 2%, top 15)
+      const eS = await apiGet("/v1/nba/edges/today?market=spreads&min_ev=0.02&max_results=15");
+      if (eS.ok) {
+        const d = await eS.json();
+        setEdgesSpreads(d.items || []);
+      } else {
+        setEdgesSpreads([]);
+      }
+
+      const eT = await apiGet("/v1/nba/edges/today?market=totals&min_ev=0.02&max_results=15");
+      if (eT.ok) {
+        const d = await eT.json();
+        setEdgesTotals(d.items || []);
+      } else {
+        setEdgesTotals([]);
       }
     } finally {
       setLoading(false);
@@ -132,10 +163,17 @@ export default function Dashboard() {
   }
 
   function fmtLine(x: number) {
-    // one decimal is enough
     const v = Math.round(x * 10) / 10;
-    // show + for positive numbers
     return v > 0 ? `+${v}` : `${v}`;
+  }
+
+  function fmtEv(ev: number) {
+    const v = Math.round(ev * 1000) / 10; // percent points
+    return `${v}%`;
+  }
+
+  function fmtOdds(odds: number) {
+    return Math.round(odds * 100) / 100;
   }
 
   const sortedGames = useMemo(() => {
@@ -157,7 +195,7 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Dashboard</h1>
           <a href="/" className="text-sm px-3 py-1 rounded-lg border hover:bg-gray-50">
@@ -191,7 +229,62 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="mt-6">
+            {/* TOP EDGES */}
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold">Top Edges</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Ranked by expected value (EV). Refreshes every 30s.
+              </p>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border p-4">
+                  <div className="font-semibold mb-2">Spreads</div>
+                  {edgesSpreads.length === 0 ? (
+                    <div className="text-sm text-gray-600">No +EV spreads found (yet).</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {edgesSpreads.map((e) => (
+                        <div key={`${e.gameId}-${e.book}-${e.pick}-${e.line}`} className="rounded-lg bg-gray-50 border p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-medium">{e.pick}</div>
+                            <div className="text-sm font-semibold">{fmtEv(e.ev)}</div>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-600 flex items-center justify-between gap-3">
+                            <span>{e.book} • {e.source}</span>
+                            <span>odds {fmtOdds(e.odds_decimal)} • p {pct(e.model_prob)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="font-semibold mb-2">Totals</div>
+                  {edgesTotals.length === 0 ? (
+                    <div className="text-sm text-gray-600">No +EV totals found (yet).</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {edgesTotals.map((e) => (
+                        <div key={`${e.gameId}-${e.book}-${e.pick}-${e.line}`} className="rounded-lg bg-gray-50 border p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-medium">{e.pick}</div>
+                            <div className="text-sm font-semibold">{fmtEv(e.ev)}</div>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-600 flex items-center justify-between gap-3">
+                            <span>{e.book} • {e.source}</span>
+                            <span>odds {fmtOdds(e.odds_decimal)} • p {pct(e.model_prob)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* GAMES */}
+            <div className="mt-10">
               <h2 className="text-lg font-semibold">Today’s Games</h2>
               <p className="text-xs text-gray-500 mt-1">Auto-refreshing every 30 seconds</p>
 
@@ -237,7 +330,6 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {/* Fair line display */}
                         {f ? (
                           <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                             <div className="rounded-lg bg-gray-50 border p-3">
@@ -253,11 +345,8 @@ export default function Dashboard() {
                               <div className="font-semibold">{pct(f.prob.home_win)}</div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="mt-3 text-xs text-gray-500">Fair lines loading…</div>
-                        )}
+                        ) : null}
 
-                        {/* Existing win% cards (placeholder) */}
                         {p ? (
                           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                             <div className="rounded-lg bg-gray-50 border p-3">
